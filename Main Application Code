@@ -1,0 +1,325 @@
+package com.example.budgetapp
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.text.NumberFormat
+import java.util.*
+
+data class Transaction(
+    val id: String = UUID.randomUUID().toString(),
+    val label: String,
+    val amount: Double,
+    val isIncome: Boolean,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            BudgetAppTheme {
+                BudgetApp()
+            }
+        }
+    }
+}
+
+@Composable
+fun BudgetAppTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF2E7D32),
+            secondary = Color(0xFFFF5722),
+            surface = Color(0xFFF8F9FA),
+            background = Color(0xFFFFFFFF)
+        ),
+        content = content
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BudgetApp() {
+    var transactions by remember { mutableStateOf(listOf<Transaction>()) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    
+    val totalIncome = transactions.filter { it.isIncome }.sumOf { it.amount }
+    val totalExpenses = transactions.filter { !it.isIncome }.sumOf { it.amount }
+    val balance = totalIncome - totalExpenses
+    
+    val currencyFormat = NumberFormat.getCurrencyInstance()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        // Header
+        Text(
+            text = "Budget Tracker",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+        
+        // Balance Summary Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp)
+            ) {
+                Text(
+                    text = "Current Balance",
+                    fontSize = 16.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Text(
+                    text = currencyFormat.format(balance),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (balance >= 0) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Income", fontSize = 14.sp, color = Color.Gray)
+                        Text(
+                            currencyFormat.format(totalIncome),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                    Column {
+                        Text("Expenses", fontSize = 14.sp, color = Color.Gray)
+                        Text(
+                            currencyFormat.format(totalExpenses),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFD32F2F)
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Add Transaction Button
+        Button(
+            onClick = { showAddDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Add Transaction")
+        }
+        
+        // Transactions List
+        if (transactions.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Text(
+                    text = "No transactions yet.\nTap 'Add Transaction' to get started!",
+                    modifier = Modifier.padding(32.dp),
+                    textAlign = TextAlign.Center,
+                    color = Color.Gray,
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            LazyColumn {
+                items(transactions.sortedByDescending { it.timestamp }) { transaction ->
+                    TransactionItem(transaction = transaction)
+                }
+            }
+        }
+    }
+    
+    // Add Transaction Dialog
+    if (showAddDialog) {
+        AddTransactionDialog(
+            onDismiss = { showAddDialog = false },
+            onTransactionAdded = { transaction ->
+                transactions = transactions + transaction
+                showAddDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun TransactionItem(transaction: Transaction) {
+    val currencyFormat = NumberFormat.getCurrencyInstance()
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = transaction.label,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = if (transaction.isIncome) "Income" else "Expense",
+                    fontSize = 12.sp,
+                    color = if (transaction.isIncome) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                )
+            }
+            Text(
+                text = "${if (transaction.isIncome) "+" else "-"}${currencyFormat.format(transaction.amount)}",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (transaction.isIncome) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddTransactionDialog(
+    onDismiss: () -> Unit,
+    onTransactionAdded: (Transaction) -> Unit
+) {
+    var label by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var isIncome by remember { mutableStateOf(true) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Transaction") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text("Label") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    placeholder = { Text("e.g., Groceries, Salary") }
+                )
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    placeholder = { Text("0.00") }
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    FilterChip(
+                        onClick = { isIncome = true },
+                        label = { Text("Income") },
+                        selected = isIncome,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFF2E7D32),
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                    FilterChip(
+                        onClick = { isIncome = false },
+                        label = { Text("Expense") },
+                        selected = !isIncome,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFFD32F2F),
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (label.isNotBlank() && amount.isNotBlank()) {
+                        try {
+                            val amountDouble = amount.toDouble()
+                            if (amountDouble > 0) {
+                                onTransactionAdded(
+                                    Transaction(
+                                        label = label.trim(),
+                                        amount = amountDouble,
+                                        isIncome = isIncome
+                                    )
+                                )
+                            }
+                        } catch (e: NumberFormatException) {
+                            // Handle invalid number input
+                        }
+                    }
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
